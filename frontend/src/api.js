@@ -2,7 +2,14 @@ import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-const api = axios.create({ baseURL: BASE_URL });
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    "ngrok-skip-browser-warning": "true",
+    "Content-Type": "application/json",
+  },
+  timeout: 30000,
+});
 
 api.interceptors.request.use((config) => {
   const key = localStorage.getItem("sp_api_key");
