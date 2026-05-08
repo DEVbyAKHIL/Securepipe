@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /code
 
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir --force-reinstall openai==1.30.1
 
 COPY . .
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/code
 
 EXPOSE 8000
 
