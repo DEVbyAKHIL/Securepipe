@@ -30,7 +30,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — wildcard for ngrok compatibility
+# ── CORS middleware — must be first ──
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,22 +39,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ngrok interstitial bypass + CORS safety net
+# ── Middleware: handle OPTIONS preflight + inject CORS on all responses ──
 @app.middleware("http")
 async def add_headers(request: Request, call_next):
     if request.method == "OPTIONS":
         return JSONResponse(
+            content={"ok": True},                          # ← this was missing
             status_code=200,
             headers={
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
                 "Access-Control-Allow-Headers": "*",
-                "ngrok-skip-browser-warning": "true",
-            }
+            },
         )
     response = await call_next(request)
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["ngrok-skip-browser-warning"] = "true"
     return response
 
 app.add_exception_handler(ScanError, scan_error_handler)
