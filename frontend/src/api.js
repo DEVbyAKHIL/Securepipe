@@ -5,7 +5,6 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
-    "ngrok-skip-browser-warning": "true",
     "Content-Type": "application/json",
   },
   timeout: 30000,
@@ -17,10 +16,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export const triggerScan  = (data)       => api.post("/api/v1/scan", data);
-export const triggerAsync = (data)       => api.post("/api/v1/scan/async", data);
-export const pollJob      = (jobId)      => api.get("/api/v1/scan/status/" + jobId);
-export const getHistory   = (limit = 20) => api.get("/api/v1/scans?limit=" + limit);
-export const getHealth    = ()           => api.get("/api/v1/health");
+export const triggerScan = (data) => api.post("/api/v1/scan", data);
+export const triggerAsync = (data) => api.post("/api/v1/scan/async", data);
+export const pollJob = (jobId) => api.get("/api/v1/scan/status/" + jobId);
+export const getHistory = (limit = 20) => api.get("/api/v1/scans?limit=" + limit);
+export const getHealth = () => api.get("/api/v1/health");
 
 export default api;
