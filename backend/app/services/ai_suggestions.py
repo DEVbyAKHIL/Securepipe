@@ -15,7 +15,7 @@ async def get_gemini_suggestion(finding: Finding) -> str:
     try:
         import google.generativeai as genai
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.0-flash")
         prompt = (f"Security finding: {finding.title}\n"
                   f"Severity: {finding.severity}\n"
                   f"Description: {finding.description}\n"
