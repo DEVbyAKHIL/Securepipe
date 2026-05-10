@@ -12,3 +12,4 @@ GitPython==3.1.43
 anyio==4.3.0
 slowapi==0.1.9
 google-generativeai==0.5.4
+semgrep==1.70.0
