@@ -11,23 +11,21 @@ STATIC = {
     "low":      "Address in routine maintenance. Low exploitability but still worth fixing.",
 }
 
+
 async def get_gemini_suggestion(finding: Finding, retries: int = 2) -> str:
     for attempt in range(retries + 1):
         try:
             import google.generativeai as genai
             genai.configure(api_key=settings.GEMINI_API_KEY)
             model = genai.GenerativeModel("gemini-2.0-flash")
-            prompt = (
-                "Security finding: " + finding.title + "
-"
-                "Severity: " + str(finding.severity) + "
-"
-                "Description: " + finding.description + "
-"
-                "File: " + finding.file + "
-"
-                "Provide a concise 2-sentence fix recommendation for a developer."
-            )
+            lines = [
+                "Security finding: " + finding.title,
+                "Severity: " + str(finding.severity),
+                "Description: " + finding.description,
+                "File: " + finding.file,
+                "Provide a concise 2-sentence fix recommendation for a developer.",
+            ]
+            prompt = "\n".join(lines)
             response = await asyncio.to_thread(model.generate_content, prompt)
             return response.text.strip()
         except Exception as e:
@@ -38,6 +36,7 @@ async def get_gemini_suggestion(finding: Finding, retries: int = 2) -> str:
             else:
                 logger.error("gemini_fail", err=str(e))
                 raise
+
 
 async def enrich_all_findings(findings: List[Finding]) -> List[Finding]:
     if not settings.AI_ENABLED or not findings:
