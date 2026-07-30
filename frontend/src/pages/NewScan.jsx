@@ -31,19 +31,46 @@ export default function NewScan() {
         stepIdx = Math.min(stepIdx + 1, STEPS.length - 1);
         setStep(stepIdx);
       }, 4000);
-      let done = false;
+        let done = false;
+      let consecutiveErrors = 0;
+      const MAX_ERRORS = 5;
       while (!done) {
         await new Promise((r) => setTimeout(r, 3000));
-        const { data: status } = await pollJob(jobId);
-        if (status.status === "completed") {
-          clearInterval(ticker);
-          done = true;
-          nav("/results/" + jobId, { state: { result: status } });
-        } else if (status.status === "failed") {
-          clearInterval(ticker);
-          done = true;
-          setError(status.error_message || "Scan failed.");
-          setLoading(false);
+        try {
+          const { data: status } = await pollJob(jobId);
+          consecutiveErrors = 0; // reset on success
+          if (status.status === "completed") {
+            clearInterval(ticker);
+            done = true;
+            nav("/results/" + jobId, { state: { result: status } });
+          } else if (status.status === "failed") {
+            clearInterval(ticker);
+            done = true;
+            setError(status.error_message || "Scan failed.");
+            setLoading(false);
+          }
+        } catch (pollErr) {
+          consecutiveErrors++;
+          const is404 = pollErr.response?.status === 404;
+          if (is404) {
+            // Job lost (server restarted mid-scan). Stop immediately.
+            clearInterval(ticker);
+            done = true;
+            setError(
+              "The backend restarted while your scan was running (likely a new deployment). " +
+              "Please start a new scan."
+            );
+            setLoading(false);
+          } else if (consecutiveErrors >= MAX_ERRORS) {
+            clearInterval(ticker);
+            done = true;
+            setError(
+              `Lost connection to the server after ${MAX_ERRORS} retries. ` +
+              "Please check your connection and try again."
+            );
+            setLoading(false);
+          }
+          // else: transient network blip — keep polling
         }
       }
     } catch (err) {

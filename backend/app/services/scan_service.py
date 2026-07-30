@@ -39,14 +39,17 @@ async def run_full_scan(req: ScanRequest) -> ScanResult:
     logger.info("scan_start", id=sid, repo=req.repo_url)
     try:
         async with cloned_repo(req.repo_url, req.branch) as path:
-            results = await asyncio.gather(
-                safe("bandit",   run_bandit(path)),
-                safe("safety",   run_safety(path)),
-                safe("trufflehog", run_trufflehog(path)),
-                safe("checkov",  run_checkov(path)),
-                safe("npm",      run_npm_audit(path)),
-                safe("semgrep",  run_semgrep(path)),
-                safe("trivy",    run_trivy(path)),
+            results = await asyncio.wait_for(
+                asyncio.gather(
+                    safe("bandit",     run_bandit(path)),
+                    safe("safety",     run_safety(path)),
+                    safe("trufflehog", run_trufflehog(path)),
+                    safe("checkov",    run_checkov(path)),
+                    safe("npm",        run_npm_audit(path)),
+                    safe("semgrep",    run_semgrep(path)),
+                    safe("trivy",      run_trivy(path)),
+                ),
+                timeout=90,
             )
         all_f = []
         for _, fl in results: all_f.extend(fl)

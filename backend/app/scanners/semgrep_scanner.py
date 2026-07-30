@@ -13,7 +13,7 @@ async def run_semgrep(repo_path: str) -> List[Finding]:
     try:
         proc = await asyncio.create_subprocess_exec(*cmd,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=120)
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=60)
         raw = out.decode("utf-8", errors="replace").strip()
         stderr_text = err.decode("utf-8", errors="replace").strip()
 
