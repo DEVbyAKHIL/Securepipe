@@ -1,3 +1,4 @@
+import os, tempfile
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from functools import lru_cache
@@ -17,13 +18,15 @@ class Settings(BaseSettings):
     AI_ENABLED: bool = Field(default=False)
     MAX_REPO_SIZE_MB: int = Field(default=100)
     SCAN_TIMEOUT_SECONDS: int = Field(default=120)
-    TEMP_DIR: str = Field(default="/tmp/securepipe")
+    TEMP_DIR: str = Field(default=os.path.join(tempfile.gettempdir(), "securepipe"))
     API_KEY: str = Field(default="")
     WEBHOOK_SECRET: str = Field(default="")
 
     def model_post_init(self, context):
         if self.GEMINI_API_KEY or self.OPENAI_API_KEY:
             object.__setattr__(self, "AI_ENABLED", True)
+        if not self.TEMP_DIR:
+            object.__setattr__(self, "TEMP_DIR", os.path.join(tempfile.gettempdir(), "securepipe"))
 
     class Config:
         env_file = ".env"

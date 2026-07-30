@@ -19,7 +19,7 @@ class ScanStatus(str, Enum):
 
 class ScanRequest(BaseModel):
     repo_url: str
-    branch: str = "main"
+    branch: Optional[str] = None
 
     @field_validator("repo_url")
     @classmethod
@@ -34,6 +34,8 @@ class ScanRequest(BaseModel):
     @field_validator("branch")
     @classmethod
     def validate_branch(cls, v):
+        if v is None:
+            return v
         if not re.match(r"^[a-zA-Z0-9._/-]+$", v.strip()):
             raise ValueError("Invalid branch name.")
         return v.strip()
@@ -43,7 +45,9 @@ class Finding(BaseModel):
     title: str; description: str; file: str
     line: Optional[int] = None; vuln_type: str = ""
     cve: Optional[str] = None; cvss: Optional[float] = None
-    fix_suggestion: str = ""; code_snippet: Optional[str] = None
+    suggestion: str = ""; suggestion_source: str = "unavailable"
+    model: Optional[str] = None; error_reason: Optional[str] = None
+    code_snippet: Optional[str] = None
     references: List[str] = []
 
 class ScanCounts(BaseModel):
@@ -51,7 +55,7 @@ class ScanCounts(BaseModel):
     medium: int = 0; low: int = 0; total: int = 0
 
 class ScanResult(BaseModel):
-    scan_id: str; repo_url: str; repo_name: str; branch: str
+    scan_id: str; repo_url: str; repo_name: str; branch: Optional[str] = None
     status: ScanStatus; findings: List[Finding] = []
     counts: ScanCounts = ScanCounts(); score: Optional[int] = None
     duration_seconds: Optional[float] = None; scanners_used: List[str] = []
@@ -60,7 +64,7 @@ class ScanResult(BaseModel):
     error_message: Optional[str] = None
 
 class HistoryScan(BaseModel):
-    scan_id: str; repo_url: str; repo_name: str; branch: str
+    scan_id: str; repo_url: str; repo_name: str; branch: Optional[str] = None
     status: ScanStatus; score: Optional[int] = None
     counts: ScanCounts = ScanCounts()
     duration_seconds: Optional[float] = None

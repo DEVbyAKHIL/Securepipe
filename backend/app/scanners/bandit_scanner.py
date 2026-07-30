@@ -1,4 +1,4 @@
-import asyncio, json, uuid
+import asyncio, json, sys, uuid
 from typing import List
 from app.core.models import Finding, Severity
 from app.core.logging import logger
@@ -16,14 +16,23 @@ FIXES = {
 DEFAULT = "Review OWASP Top 10. Validate all inputs. Use least privilege."
 
 async def run_bandit(repo_path: str) -> List[Finding]:
-    cmd = ["bandit","-r",repo_path,"-f","json","-ll","--quiet",
-           "-x",".git,tests,venv,.venv,node_modules"]
+    # Use python -m bandit so the pip-installed package is always found,
+    # regardless of whether the 'bandit' shim is on PATH (Windows issue).
+    cmd = [sys.executable, "-m", "bandit",
+           "-r", repo_path, "-f", "json", "-ll", "--quiet",
+           "-x", ".git,tests,venv,.venv,node_modules"]
     try:
         proc = await asyncio.create_subprocess_exec(*cmd,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=60)
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=60)
         raw = out.decode("utf-8", errors="replace").strip()
-        if not raw: return []
+        if not raw:
+            # Bandit exits 0 with no output when no issues found — that's fine.
+            # But if exit code != 0 and no output, log stderr for debugging.
+            if proc.returncode not in (0, 1):
+                stderr_text = err.decode("utf-8", errors="replace").strip()
+                logger.warning("bandit_no_output", rc=proc.returncode, stderr=stderr_text[:500])
+            return []
         data = json.loads(raw)
         findings = []
         for item in data.get("results", []):
@@ -38,13 +47,13 @@ async def run_bandit(repo_path: str) -> List[Finding]:
                 id="b_"+uuid.uuid4().hex[:8], scanner="SAST Bandit", severity=sev,
                 title=item.get("test_name","Issue").replace("_"," ").title(),
                 description=item.get("issue_text","Security issue."),
-                file=item.get("filename","").replace(repo_path,"").lstrip("/"),
+                file=item.get("filename","").replace(repo_path,"").lstrip("/").lstrip("\\"),
                 line=item.get("line_number"), vuln_type=tid,
-                fix_suggestion=FIXES.get(tid, DEFAULT),
+                suggestion=FIXES.get(tid, DEFAULT),
                 code_snippet=item.get("code","").strip(),
                 references=[f"https://bandit.readthedocs.io/en/latest/plugins/{tid.lower()}.html"],
             ))
         logger.info("bandit_done", n=len(findings))
         return findings
     except Exception as e:
-        logger.error("bandit_fail", err=str(e)); return []
+        logger.error("bandit_fail", err=repr(e)); return []

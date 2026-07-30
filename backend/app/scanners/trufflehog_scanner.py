@@ -13,10 +13,13 @@ PATTERNS = [
     ("Google Key",   r"AIza[0-9A-Za-z\-]{35}",       Severity.HIGH,     7.5),
     ("Private Key",  r"-----BEGIN .{0,10}PRIVATE KEY", Severity.CRITICAL, 9.8),
     ("Password",     r"(?i)password\s*=\s*.{4,}",   Severity.HIGH,     7.5),
+    ("Generic Secret", r"(?i)(?:secret|token|api_key)\s*[=:]\s*['\"][^\s'\"]{8,}", Severity.HIGH, 7.5),
+    ("Slack Token",  r"xox[baprs]-[0-9a-zA-Z\-]{10,}", Severity.HIGH, 7.5),
 ]
 
 
 def regex_scan(repo_path: str) -> List[Finding]:
+    """Regex-based secret scanning fallback when trufflehog binary is unavailable."""
     found, seen = [], set()
     for dp, dns, fns in os.walk(repo_path):
         dns[:] = [d for d in dns if d not in SKIP_DIR]
@@ -24,7 +27,7 @@ def regex_scan(repo_path: str) -> List[Finding]:
             if os.path.splitext(fn)[1].lower() in SKIP_EXT:
                 continue
             fp  = os.path.join(dp, fn)
-            rel = fp.replace(repo_path, "").lstrip("/")
+            rel = fp.replace(repo_path, "").lstrip("/").lstrip("\\")
             try:
                 with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
                     for i, line in enumerate(fh, 1):
@@ -44,7 +47,7 @@ def regex_scan(repo_path: str) -> List[Finding]:
                                     line=i,
                                     vuln_type="secret_in_code",
                                     cvss=cvss,
-                                    fix_suggestion=FIX,
+                                    suggestion=FIX,
                                     code_snippet=line.strip()[:100],
                                 ))
                                 break
@@ -54,6 +57,7 @@ def regex_scan(repo_path: str) -> List[Finding]:
 
 
 async def run_trufflehog(repo_path: str) -> List[Finding]:
+    # First try the trufflehog binary; if not installed, fall back to regex.
     try:
         cmd = ["trufflehog", "filesystem", repo_path, "--json", "--no-update"]
         proc = await asyncio.create_subprocess_exec(
@@ -81,18 +85,24 @@ async def run_trufflehog(repo_path: str) -> List[Finding]:
                     vuln_type="secret_in_code",
                     title=f"Verified {item.get('DetectorName', 'Secret')}",
                     description="Live credential verified by TruffleHog.",
-                    file=fp.replace(repo_path, "").lstrip("/"),
+                    file=fp.replace(repo_path, "").lstrip("/").lstrip("\\"),
                     cvss=9.8,
-                    fix_suggestion=FIX,
+                    suggestion=FIX,
                 ))
             except Exception:
                 continue
         logger.info("trufflehog_done", n=len(findings))
         return findings
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
+        # trufflehog binary not installed — fall back to regex scanning.
+        # This is the expected case on Windows without the Go binary.
+        logger.info("trufflehog_not_installed", fallback="regex")
         r = regex_scan(repo_path)
         logger.info("regex_fallback_done", n=len(r))
         return r
     except Exception as e:
-        logger.error("trufflehog_fail", err=str(e))
-        return []
+        # Some other error (timeout, etc.) — still try regex fallback.
+        logger.error("trufflehog_fail", err=repr(e))
+        r = regex_scan(repo_path)
+        logger.info("regex_fallback_done", n=len(r))
+        return r

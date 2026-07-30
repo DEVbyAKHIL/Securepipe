@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from app.core.models import ScanRequest, ScanResult, ScanStatus
 from app.core.auth import require_api_key
+from app.core.exceptions import ScanError
+from app.core.logging import logger
 from app.services.scan_service import run_full_scan
 import uuid
 from datetime import datetime, timezone
@@ -15,9 +17,17 @@ async def run_job(job_id: str, req: ScanRequest):
         jobs[job_id]["status"]       = result.status
         jobs[job_id]["result"]       = result
         jobs[job_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        if result.status == ScanStatus.FAILED:
+            jobs[job_id]["error"] = result.error_message
+            logger.error("job_failed", job_id=job_id, error=result.error_message)
+    except ScanError as e:
+        jobs[job_id]["status"] = ScanStatus.FAILED
+        jobs[job_id]["error"]  = e.detail if hasattr(e, "detail") else str(e)
+        logger.error("job_scan_error", job_id=job_id, error=jobs[job_id]["error"])
     except Exception as e:
         jobs[job_id]["status"] = ScanStatus.FAILED
         jobs[job_id]["error"]  = str(e)
+        logger.error("job_exception", job_id=job_id, error=str(e))
 
 @router.post("/scan/async")
 async def trigger_async_scan(req: ScanRequest, bg: BackgroundTasks, _=Depends(require_api_key)):

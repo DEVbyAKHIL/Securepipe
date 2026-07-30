@@ -1,3 +1,10 @@
+import sys, asyncio
+
+# On Windows, asyncio.create_subprocess_exec requires ProactorEventLoop.
+# Uvicorn may default to SelectorEventLoop, so force Proactor here.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -56,8 +63,17 @@ async def add_headers(request: Request, call_next):
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import ResponseValidationError
+async def custom_generic_error_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": str(exc), "type": str(type(exc))})
+
+async def validation_exception_handler(request: Request, exc: ResponseValidationError):
+    return JSONResponse(status_code=500, content={"detail": exc.errors(), "type": "ResponseValidationError"})
+
 app.add_exception_handler(ScanError, scan_error_handler)
-app.add_exception_handler(Exception, generic_error_handler)
+app.add_exception_handler(Exception, custom_generic_error_handler)
+app.add_exception_handler(ResponseValidationError, validation_exception_handler)
 
 app.include_router(scan_router,    prefix="/api/v1", tags=["Scan"])
 app.include_router(queue_router,   prefix="/api/v1", tags=["Queue"])

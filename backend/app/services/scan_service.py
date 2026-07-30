@@ -2,7 +2,6 @@ import asyncio, time, uuid
 from datetime import datetime, timezone
 from typing import List
 from app.core.models import ScanResult, ScanRequest, ScanCounts, ScanStatus, Finding, Severity
-from app.core.exceptions import ScanError
 from app.core.logging import logger
 from app.scanners.repo_manager import cloned_repo
 from app.scanners.bandit_scanner import run_bandit
@@ -31,7 +30,7 @@ async def safe(name, coro):
     try:
         r = await coro; logger.info("ok", s=name, n=len(r)); return name, r
     except Exception as e:
-        logger.error("fail", s=name, err=str(e)); return name, []
+        logger.error("scanner_fail", s=name, err=repr(e)); return name, []
 
 async def run_full_scan(req: ScanRequest) -> ScanResult:
     sid = "scan_" + uuid.uuid4().hex[:16]
@@ -68,9 +67,8 @@ async def run_full_scan(req: ScanRequest) -> ScanResult:
         logger.info("scan_done", id=sid, total=c.total, score=s)
         asyncio.create_task(save_scan_result(result))
         return result
-    except ScanError: raise
     except Exception as e:
-        logger.error("scan_fail", id=sid, err=str(e))
+        logger.error("scan_fail", id=sid, err=repr(e))
         return ScanResult(
             scan_id=sid, repo_url=req.repo_url,
             repo_name=req.repo_url.split("/")[-1],
